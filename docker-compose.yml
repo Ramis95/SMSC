@@ -1,0 +1,27 @@
+version: "3.5"
+
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+    - 127.0.0.1:80:80
+    volumes:
+    - .:/var/www/html
+    - ./docker/config/nginx:/etc/nginx/conf.d
+    - ./docker/logs/nginx:/var/log/nginx
+    links:
+      - php-fpm
+
+  php-fpm:
+    build:
+      context: ./docker/php-fpm
+    volumes:
+    - .:/var/www/html
+    links:
+      - redis
+
+  redis:
+    image: redis
+    restart: always
+    logging:
+      driver: none
