@@ -18,4 +18,4 @@ $router->get('/', function () use ($router) {
 });
 
 
-$router->get('/smsc', 'SMSC@index');
+$router->get('/v1/smsc', 'SMSC@index');
