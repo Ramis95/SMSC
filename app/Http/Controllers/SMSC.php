@@ -31,6 +31,9 @@ class SMSC extends Controller
                 {
                     $url = 'http://127.0.0.1:81/v1/' . $command;
                     $billing_response = $this->send_billing_api($url, $this->user_request);
+
+
+
                 }
                 else
                 {
@@ -90,10 +93,6 @@ class SMSC extends Controller
     {
         /* Send request to billing-api */
 
-//        var_dump($url);
-//        var_dump($user_data);
-//        die();
-
         $json = json_encode($user_data);
         $ch   = curl_init($url);
 
@@ -110,10 +109,9 @@ class SMSC extends Controller
         );
 
         $result['response_data'] = curl_exec($ch);
-        $result['response_code'] = curl_getinfo($ch, CURLINFO_HTTP_CODE); // Получаем HTTP-код
+        $result['response_code'] = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        var_dump($ch);
-        var_dump($result);
+        return $result;
 
     }
 
