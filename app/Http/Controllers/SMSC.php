@@ -14,6 +14,7 @@ class SMSC extends Controller
     public function __construct(Request $request)
     {
         /* input data */
+
         $this->user_request = json_decode($request->getContent(), true);
     }
 
@@ -29,8 +30,22 @@ class SMSC extends Controller
                 $command =$this->get_command($this->user_request['serviceNumber']);
                 if($command)
                 {
-                    $url = 'http://127.0.0.1:81/v1/' . $command;
+                    $url = 'http://192.168.143.207/v1/' . $command;
+
+                    $this->user_request['faza'] = app('redis')->get($this->user_request['sessionId']);
+
+
+
+
                     $billing_response = $this->send_billing_api($url, $this->user_request);
+
+                    $this->interactivity_check($this->user_request['sessionId'], $billing_response['response_data']);
+
+
+
+
+
+
 
 
 
@@ -51,12 +66,6 @@ class SMSC extends Controller
            /* return message about error */
         }
 
-//        dump(app('redis'));
-
-
-
-
-
         die();
 
 
@@ -65,20 +74,42 @@ class SMSC extends Controller
 //        $test = app('redis')->get(1);
 //        dump($test);
 
-        die();
+
+    }
 
 
+    private function interactivity_check($sessionID, $response_data)
+    {
+        /* Verifying the existence of an interactive request for sessionId */
 
-        die();
+//        die();
 
-        app('redis')->exists(11);
+        $response_data = json_decode($response_data);
+//        var_dump($response_data);
 
-        app('redis')->set(11, 'cAS');
+        $sessionInMemory = app('redis')->get($sessionID);
+//        var_dump($sessionInMemory);
 
-        app('redis')->get(11);
+//        var_dump($response_data->endSession);
+
+        if($sessionInMemory && $response_data->endSession == 1)
+        {
+            app('redis')->del($sessionID);
+        }
+        elseif ($sessionInMemory && $response_data->endSession == 0)
+        {
+            $faza = $sessionInMemory + $response_data->interactive_result;
+            app('redis')->set($sessionID, $faza, 'EX', 30);
+        }
+        elseif (!$sessionInMemory && $response_data->endSession == 0 )
+        {
+            app('redis')->set($sessionID,1, 'EX', 30);
+        }
+
 
 
     }
+
 
     private function get_command($serviceNumber)
     {
@@ -92,6 +123,8 @@ class SMSC extends Controller
     private function send_billing_api($url, $user_data)
     {
         /* Send request to billing-api */
+
+
 
         $json = json_encode($user_data);
         $ch   = curl_init($url);
