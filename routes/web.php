@@ -13,9 +13,12 @@
 |
 */
 
+
 $router->get('/', function () use ($router) {
     return $router->app->version();
 });
 
 
-$router->get('/v1/smsc', 'SMSC@index');
+$router->post('/v1/smsc', 'SMSC@index');
+
+$router->post('/v1/save', 'SMSC@save_command_in_redis');
