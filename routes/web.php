@@ -20,5 +20,7 @@ $router->get('/', function () use ($router) {
 
 
 $router->post('/v1/smsc', 'SMSC@index');
+$router->post('/v1/sendsms', 'SMSC@send_SMS');
+
 
 $router->post('/v1/save', 'SMSC@save_command_in_redis');
