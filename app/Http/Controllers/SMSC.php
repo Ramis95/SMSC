@@ -25,44 +25,34 @@ class SMSC extends Controller
         /* Get a command from Redis and send a request to the billing API */
 
         /* Check sessionId */
-        if(!isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['sessionId'])) {
             $this->user_request['sessionId'] = NULL;
         }
 
-        if(app('redis')) /* Check Redis */
-        {
-            if(isset($this->user_request['serviceNumber'])) /* Check input command */
-            {
+        if (app('redis')) /* Check Redis */ {
+            if (isset($this->user_request['serviceNumber'])) /* Check input command */ {
                 $command = $this->get_command($this->user_request['serviceNumber']);
 
-                if($command && method_exists($this, $command)) /* Check command && method for command */
-                {
+                if ($command && method_exists($this, $command)) /* Check command && method for command */ {
                     $response = $this->$command(); /* Call command USSD/SMS */
-
-                    $log = "\n— request: " . json_encode($this->user_request) . " \n";
-                    $log .= "— response: " . json_encode($response) . " \n";
-                    $log .= "————————————————————";
-                    Log::info($log);
-
-                    /* Return response to the client */
-                    return response()->json([
-                        'text' => $response['text'],
-                        'sessionId' => $response['sessionId'],
-                        'endSession' => $response['endSession'],
-                    ], $response['code']);
                 }
-                else
-                {
-                    return response()->json([
-                        'text' => 'Такой команды не существует',
-                        'sessionId' => $this->user_request['sessionId'],
-                        'endSession' => 1,
-                    ], 400);
+                else { /* Else call procedure */
+                    $response = $this->call_billing_procedure();
                 }
-            }
-            else
-            {
+
+                $log = "\n— request: " . json_encode($this->user_request) . " \n";
+                $log .= "— response: " . json_encode($response) . " \n";
+                $log .= "————————————————————";
+                Log::info($log);
+
+                /* Return response to the client */
+                return response()->json([
+                    'text' => $response['text'],
+                    'sessionId' => $response['sessionId'],
+                    'endSession' => $response['endSession'],
+                ], $response['code']);
+
+            } else {
                 return response()->json([
                     'text' => 'Невозможно получить информацию по Вашему номеру.',
                     'sessionId' => $this->user_request['sessionId'],
@@ -70,11 +60,8 @@ class SMSC extends Controller
                 ], 400);
 
             }
-        }
-        else
-        {
-            if(!isset($this->user_request['sessionId']))
-            {
+        } else {
+            if (!isset($this->user_request['sessionId'])) {
                 $this->user_request['sessionId'] = NULL;
             }
 
@@ -101,8 +88,7 @@ class SMSC extends Controller
 
 
         /* Check input data */
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -112,20 +98,18 @@ class SMSC extends Controller
         }
 
         /* Check 7 at the beginning*/
-        if (substr($this->user_request['msisdn'], 0,1) == 7 && strlen($this->user_request['msisdn']) == 11)
-        {
+        if (substr($this->user_request['msisdn'], 0, 1) == 7 && strlen($this->user_request['msisdn']) == 11) {
             $this->user_request['msisdn'] = (int)substr($this->user_request['msisdn'], 1);
         }
 
         $balance_data['msisdn'] = $this->user_request['msisdn'];
         $balance_data['sessionId'] = $this->user_request['sessionId'];
-        $check_balance_url = $this->billing_api_url.'get_balance';
+        $check_balance_url = $this->billing_api_url . 'get_balance';
         $user_balance = $this->send_billing_api($check_balance_url, $balance_data);
         $user_balance = json_decode($user_balance['response_data'], true);
 
         /* Check balance data */
-        if(!isset($user_balance['vCurrentBalance']) || !isset($user_balance['nClient']))
-        {
+        if (!isset($user_balance['vCurrentBalance']) || !isset($user_balance['nClient'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -138,8 +122,7 @@ class SMSC extends Controller
         $has_bonus = json_decode($has_bonus['response_data'], true);
 
         /* Check bonus data */
-        if(!isset($has_bonus['nClient']) || !isset($has_bonus['nCount']))
-        {
+        if (!isset($has_bonus['nClient']) || !isset($has_bonus['nCount'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -149,14 +132,12 @@ class SMSC extends Controller
         }
 
 
-        if($has_bonus['nCount'] > 0 && $has_bonus['nCount'] < 2)
-        {
+        if ($has_bonus['nCount'] > 0 && $has_bonus['nCount'] < 2) {
             $user_bonus = $this->get_bonus($user_balance['nClient']);
             $user_bonus = json_decode($user_bonus['response_data'], true);
 
             /* Check user bonus */
-            if(!isset($user_bonus['vBallans']))
-            {
+            if (!isset($user_bonus['vBallans'])) {
                 $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
                 $response['sessionId'] = $this->user_request['sessionId'];
                 $response['endSession'] = 1;
@@ -168,24 +149,27 @@ class SMSC extends Controller
             $text1 = Redis::hGet('*100#', 'text1');
             $text2 = Redis::hGet('*100#', 'text2');
 
-            $text1 = str_replace('%bonus%',$user_bonus['vBallans'], $text1);
-            $text2 = str_replace('%bonus%',$user_bonus['vBallans'], $text2);
+            $text1 = str_replace('%bonus%', $user_bonus['vBallans'], $text1);
+            $text2 = str_replace('%bonus%', $user_bonus['vBallans'], $text2);
         }
 
-        if($user_balance['vCurrentBalance'] >= -1 && $user_balance['vCurrentBalance'] <= 1 && $user_balance['vCurrentBalance'] != 0)
-        {
-            $user_balance['vCurrentBalance'] = str_replace(',','0,', $user_balance['vCurrentBalance'] );
+        if ($user_balance['vCurrentBalance'] >= -1 && $user_balance['vCurrentBalance'] <= 1 && $user_balance['vCurrentBalance'] != 0) {
+            $user_balance['vCurrentBalance'] = str_replace(',', '0,', $user_balance['vCurrentBalance']);
         }
 
-        if($user_balance['vCurrentBalance'] < 25)
-        {
+        if ($user_balance['vCurrentBalance'] < 25) {
             $text1 = Redis::hGet('*100#', 'text1');
-            $text1 = str_replace('%bonus%',$user_bonus['vBallans'], $text1);
+
+            if (!isset($user_bonus['vBallans'])) {
+                $user_bonus['vBallans'] = 0;
+            }
+
+            $text1 = str_replace('%bonus%', $user_bonus['vBallans'], $text1);
 
             $text3 = Redis::hGet('*100#', 'text3');
 
-            $text3 = str_replace('%balance%',$user_balance['vCurrentBalance'], $text3);
-            $text3 = str_replace('%text1%',$text1, $text3);
+            $text3 = str_replace('%balance%', $user_balance['vCurrentBalance'], $text3);
+            $text3 = str_replace('%text1%', $text1, $text3);
 
 
             $smsData['MSISDN'] = $this->user_request['msisdn'];
@@ -219,8 +203,7 @@ class SMSC extends Controller
     {
         /* Get the number and return */
 
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -255,8 +238,7 @@ class SMSC extends Controller
 
     private function get_my_tariff()
     {
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -267,14 +249,13 @@ class SMSC extends Controller
 
         $tariff_data['msisdn'] = $this->user_request['msisdn'];
         $tariff_data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'get_tariff';
+        $url = $this->billing_api_url . 'get_tariff';
         $user_tariff = $this->send_billing_api($url, $tariff_data);
 
         $user_tariff = json_decode($user_tariff['response_data'], true);
 
         /* Check bonus data */
-        if(!isset($user_tariff['smsText']))
-        {
+        if (!isset($user_tariff['smsText'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -307,8 +288,7 @@ class SMSC extends Controller
     private function get_balance_of_tariff()
     {
         /* Отложено */
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -320,7 +300,7 @@ class SMSC extends Controller
 
         $data['msisdn'] = $this->user_request['msisdn'];
         $data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'get_tariff_balance';
+        $url = $this->billing_api_url . 'get_tariff_balance';
         $user_tariff_balance = $this->send_billing_api($url, $data);
 
         $user_tariff_balance = json_decode($user_tariff_balance['response_data'], true);
@@ -329,8 +309,7 @@ class SMSC extends Controller
 
     private function get_family_cashback()
     {
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -341,13 +320,12 @@ class SMSC extends Controller
 
         $data['msisdn'] = $this->user_request['msisdn'];
         $data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'get_family_cashback';
+        $url = $this->billing_api_url . 'get_family_cashback';
         $additional_number = $this->send_billing_api($url, $data);
 
         $additional_number = json_decode($additional_number['response_data'], true);
 
-        if(!isset($additional_number["family_cashback"]))
-        {
+        if (!isset($additional_number["family_cashback"])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -385,8 +363,7 @@ class SMSC extends Controller
 
     private function check_additional_number()
     {
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -397,22 +374,19 @@ class SMSC extends Controller
 
         $data['msisdn'] = $this->user_request['msisdn'];
         $data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'check_additional_number';
+        $url = $this->billing_api_url . 'check_additional_number';
         $additional_number = $this->send_billing_api($url, $data);
 
         $additional_number = json_decode($additional_number['response_data'], true);
 
-        if($additional_number['num'])
-        {
+        if ($additional_number['num']) {
             $text2 = Redis::hGet('*116*718#', 'text2');
             $text2 .= $additional_number['num'];
             $response['text'] = $text2;
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
             $response['code'] = 200;
-        }
-        else
-        {
+        } else {
             $text1 = Redis::hGet('*116*718#', 'text1');
             $response['text'] = $text1;
             $response['sessionId'] = $this->user_request['sessionId'];
@@ -427,8 +401,7 @@ class SMSC extends Controller
 
     private function service_together_beneficial()
     {
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -439,7 +412,7 @@ class SMSC extends Controller
 
         $data['msisdn'] = $this->user_request['msisdn'];
         $data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'service_together_beneficial';
+        $url = $this->billing_api_url . 'service_together_beneficial';
         $service_together_beneficial = $this->send_billing_api($url, $data);
         $benefit = json_decode($service_together_beneficial['response_data'], true);
 
@@ -461,8 +434,7 @@ class SMSC extends Controller
 
         $sms_text = '';
 
-        if(!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId']))
-        {
+        if (!isset($this->user_request['msisdn']) || !isset($this->user_request['sessionId'])) {
             $response['text'] = 'Невозможно получить информацию по Вашему номеру.';
             $response['sessionId'] = $this->user_request['sessionId'];
             $response['endSession'] = 1;
@@ -473,21 +445,18 @@ class SMSC extends Controller
 
         $data['msisdn'] = $this->user_request['msisdn'];
         $data['sessionId'] = $this->user_request['sessionId'];
-        $url = $this->billing_api_url.'home_cashback';
+        $url = $this->billing_api_url . 'home_cashback';
         $cashback = $this->send_billing_api($url, $data);
         $cashback = json_decode($cashback['response_data'], true);
         $home_cashback = json_decode($cashback['home_cashback'], true);
 
-        if($home_cashback['sum'] === 0)
-        {
+        if ($home_cashback['sum'] === 0) {
             $sms_text = Redis::hGet('*104#', 'text1');
-        }
-        else
-        {
+        } else {
             $month = $this->get_month_name();
             $sms_text = Redis::hGet('*104#', 'text2');
-            $sms_text = str_replace('%MON_TH%',$month, $sms_text);
-            $sms_text = str_replace('%SU_M%',$home_cashback['sum'] , $sms_text);
+            $sms_text = str_replace('%MON_TH%', $month, $sms_text);
+            $sms_text = str_replace('%SU_M%', $home_cashback['sum'], $sms_text);
         }
 
         $smsData['MSISDN'] = $this->user_request['msisdn'];
@@ -510,6 +479,29 @@ class SMSC extends Controller
         return $response;
     }
 
+    private function call_billing_procedure()
+    {
+
+        $this->user_request['faza'] = app('redis')->get($this->user_request['sessionId']);
+
+
+        $url = $this->billing_api_url . 'billing_procedure';
+        $response = $this->send_billing_api($url, $this->user_request);
+
+        $this->interactivity_check($this->user_request['sessionId'], $response['response_data']);
+
+        $response = json_decode($response['response_data'], true);
+
+//        var_dump($response);
+
+        $response['text'] = $response['text'];
+        $response['sessionId'] = $this->user_request['sessionId'];
+        $response['endSession'] = $response['endSession'];
+        $response['code'] = 200;
+
+        return $response;
+    }
+
     public function send_SMS()
     {
         $url = $this->billing_api_url . 'sendsms';
@@ -520,16 +512,19 @@ class SMSC extends Controller
         $log .= "————————————————————";
         Log::info($log);
 
-        $this->return_response_to_client($send_sms_response['response_data']);
+        $response['text'] = 'Success';
+        $response['code'] = 200;
+
+        return $response;
     }
 
     private function get_month_name()
     {
         $mlist = array(
-            "1"=>"январь","2"=>"февраль","3"=>"март",
-            "4"=>"апрель","5"=>"май", "6"=>"июнь",
-            "7"=>"июль","8"=>"август","9"=>"сентябрь",
-            "10"=>"октябрь","11"=>"ноябрь","12"=>"декабрь");
+            "1" => "январь", "2" => "февраль", "3" => "март",
+            "4" => "апрель", "5" => "май", "6" => "июнь",
+            "7" => "июль", "8" => "август", "9" => "сентябрь",
+            "10" => "октябрь", "11" => "ноябрь", "12" => "декабрь");
 
         return $mlist[date("n")];
     }
@@ -544,7 +539,7 @@ class SMSC extends Controller
 
     private function get_bonus($nClient)
     {
-        $url = $this->billing_api_url.'get_bonus';
+        $url = $this->billing_api_url . 'get_bonus';
         $bonus_data['nClient'] = $nClient;
         $user_bonus = $this->send_billing_api($url, $bonus_data);
         return $user_bonus;
@@ -558,18 +553,14 @@ class SMSC extends Controller
 
         $sessionInMemory = app('redis')->get($sessionID);
 
-        if($sessionInMemory && $response_data->endSession == 1)
-        {
+
+        if ($sessionInMemory && $response_data->endSession == 1) {
             app('redis')->del($sessionID);
-        }
-        elseif ($sessionInMemory && $response_data->endSession == 0)
-        {
-            $faza = $sessionInMemory + $response_data->interactive_result;
-            app('redis')->set($sessionID, $faza, 'EX', 30);
-        }
-        elseif (!$sessionInMemory && $response_data->endSession == 0 )
-        {
-            app('redis')->set($sessionID,1, 'EX', 30);
+        } elseif ($sessionInMemory && $response_data->endSession == 0) {
+            $faza = $sessionInMemory + $response_data->db_result;
+            app('redis')->set($sessionID, $faza, 'EX', 120);
+        } elseif (!$sessionInMemory && $response_data->endSession == 0) {
+            app('redis')->set($sessionID, 1, 'EX', 120);
         }
     }
 
@@ -583,7 +574,7 @@ class SMSC extends Controller
         Redis::hSet('*100#', 'text4', 'Баланс: %balance% руб. %text2%');
 
         /* Test tmt */
-        Redis::hSet('*556#', 'command', 'get_balance');
+        Redis::hSet('*556#', 'command', 'call_billing_procedure');
         Redis::hSet('*556#', 'text1', 'На Вашем бонусном счете: %bonus%. Подробнее lk.letai.ru');
         Redis::hSet('*556#', 'text2', 'Бонусный счет: %bonus%.');
         Redis::hSet('*556#', 'text3', 'Необходимо пополнить счет, чтобы быть на связи! Баланс: %balance% руб. %text1%');
@@ -643,7 +634,7 @@ class SMSC extends Controller
         /* Send request to billing-api */
 
         $json = json_encode($data);
-        $ch   = curl_init($url);
+        $ch = curl_init($url);
 
         curl_setopt($ch, CURLOPT_POST, true); /* Send post request */
         curl_setopt($ch, CURLOPT_POSTFIELDS, $json); /* json = user data */
